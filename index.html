@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IBE3 Hub — Mon espace étudiant</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="logo">🎓 <span>IBE3 Hub</span></div>
+    <nav class="liens-rapides" id="liens-rapides"></nav>
+  </div>
+  <nav class="nav-tabs" id="nav-tabs">
+    <button class="tab active" data-vue="calendrier">📅 Emploi du temps</button>
+    <button class="tab" data-vue="cours">📚 Cours</button>
+    <button class="tab" data-vue="notes">📊 Notes</button>
+    <button class="tab" data-vue="planning">🧠 Planning & révisions</button>
+    <button class="tab" data-vue="moodle">🔌 Moodle</button>
+  </nav>
+</header>
+
+<main>
+  <section id="vue-calendrier" class="vue active">
+    <div class="vue-header">
+      <h1>📅 Emploi du temps</h1>
+      <div class="semaine-nav">
+        <button class="btn-ghost" id="btn-semaine-prec">‹ Précédente</button>
+        <button class="btn-ghost" id="btn-aujourdhui">Aujourd'hui</button>
+        <button class="btn-ghost" id="btn-semaine-suiv">Suivante ›</button>
+        <span class="semaine-label" id="semaine-label"></span>
+      </div>
+      <div class="actions-header">
+        <button class="btn" id="btn-ajout-event">＋ Événement</button>
+        <button class="btn btn-accent" id="btn-ajout-devoir">＋ Devoir / deadline</button>
+      </div>
+    </div>
+    <div class="legende" id="legende"></div>
+    <div class="panel liens-panel">
+      <h2>🔗 Mes liens</h2>
+      <div class="liens-cartes" id="liens-cartes"></div>
+    </div>
+    <div class="calendrier" id="calendrier"></div>
+  </section>
+
+  <section id="vue-cours" class="vue">
+    <div class="vue-header"><h1>📚 Mes cours</h1></div>
+    <div id="liste-cours" class="grille-cours"></div>
+    <div id="detail-cours" class="detail-cours hidden"></div>
+  </section>
+
+  <section id="vue-notes" class="vue">
+    <div class="vue-header">
+      <h1>📊 Mes notes</h1>
+      <div class="actions-header"><button class="btn" id="btn-ajout-note">＋ Ajouter une note</button></div>
+    </div>
+    <p class="hint">Rouge = note faible, vert = bonne note. La moyenne est calculée avec les coefficients.</p>
+    <div id="liste-notes" class="grille-notes"></div>
+  </section>
+
+  <section id="vue-moodle" class="vue">
+    <div class="vue-header"><h1>🔌 Connexion Moodle</h1></div>
+
+    <div class="panel">
+      <h2>🔑 Token web service Moodle (reste dans ton navigateur)</h2>
+      <p class="hint">Crée ton token dans Moodle : <strong>Profil → Préférences → Clés de sécurité → « Moodle mobile web service »</strong>. Colle-le ici : il est stocké uniquement dans ce navigateur (localStorage) et n'est envoyé qu'à moodle.psl.eu, jamais ailleurs. Ne le partage avec personne. Tu peux le révoquer à tout moment dans Moodle.</p>
+      <div class="saisie-libre">
+        <input type="password" id="moodle-token" placeholder="Token Moodle webservice..." autocomplete="off">
+        <button class="btn" id="btn-save-token">💾 Enregistrer</button>
+        <button class="btn-ghost" id="btn-test-moodle">🔍 Tester la connexion</button>
+      </div>
+      <p class="hint" id="moodle-status"></p>
+    </div>
+
+    <div class="panel">
+      <h2>🔄 Synchronisation automatique</h2>
+      <p class="hint">Récupère tes cours inscrits, tes devoirs Moodle (avec dates de rendu) et les événements de ton calendrier Moodle. Ils apparaîtront sur ton emploi du temps et dans tes deadlines.</p>
+      <div class="actions-header">
+        <button class="btn btn-accent" id="btn-sync-moodle">🔄 Synchroniser Moodle</button>
+      </div>
+      <p class="hint" id="moodle-sync-status"></p>
+    </div>
+
+    <div class="panel">
+      <h2>📥 Import calendrier (.ics) — sans token</h2>
+      <p class="hint">Dans Moodle : <strong>Calendrier → Exporter le calendrier</strong>, copie l'URL .ics. Colle-la ici, ou importe directement le fichier .ics téléchargé.</p>
+      <div class="saisie-libre">
+        <input type="text" id="ics-url" placeholder="https://moodle.psl.eu/calendar/export_execute.php?...&preset_what=all&.ics">
+        <button class="btn" id="btn-fetch-ics">🌐 Récupérer l'URL</button>
+        <button class="btn-ghost" id="btn-import-ics">📂 Importer un fichier .ics</button>
+        <input type="file" id="file-ics" accept=".ics,text/calendar" class="hidden">
+      </div>
+      <p class="hint" id="ics-status"></p>
+    </div>
+  </section>
+
+  <section id="vue-planning" class="vue">
+    <div class="vue-header"><h1>🧠 Planning & révisions</h1></div>
+
+    <div class="panel ia-saisie">
+      <h2>✍️ Dis-moi ce que tu as à faire</h2>
+      <p class="hint">Écris en langage naturel, par ex. « réviser les dictionnaires python pour vendredi » ou « rendre le DM de maths dans 3 jours à 20h ».</p>
+      <div class="saisie-libre">
+        <input type="text" id="input-libre" placeholder="Ex : réviser le cours de physique avant jeudi à 18h...">
+        <button class="btn" id="btn-analyser">Analyser ✨</button>
+      </div>
+      <div id="proposition" class="proposition hidden"></div>
+      <div class="actions-header">
+        <button class="btn btn-accent" id="btn-plan-auto">🤖 Générer les séances de révision auto</button>
+        <button class="btn btn-ghost" id="btn-plan-ia">💬 Demander un plan à l'IA (ChatGPT / Claude)</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>🎯 Plan de travail par devoir / projet</h2>
+      <p class="hint">Le site répartit automatiquement les heures de travail avant chaque deadline, dans tes créneaux libres (soir après 17h, week-end). Exemple : 3h de chimie le samedi avant le TP.</p>
+      <div id="plan-travail"></div>
+    </div>
+
+    <div class="panel">
+      <h2>✅ Mes tâches</h2>
+      <div class="saisie-libre">
+        <input type="text" id="input-tache" placeholder="Nouvelle tâche...">
+        <input type="date" id="input-tache-date">
+        <button class="btn" id="btn-ajout-tache">＋ Ajouter</button>
+      </div>
+      <ul id="liste-taches" class="liste-taches"></ul>
+    </div>
+
+    <div class="panel">
+      <h2>⏰ Deadlines à venir</h2>
+      <ul id="liste-deadlines" class="liste-taches"></ul>
+    </div>
+
+    <div class="panel">
+      <h2>💾 Mes données</h2>
+      <div class="actions-header">
+        <button class="btn btn-ghost" id="btn-export">⬇ Exporter mes données (JSON)</button>
+        <button class="btn btn-ghost" id="btn-import">⬆ Importer</button>
+        <input type="file" id="file-import" accept="application/json" class="hidden">
+        <button class="btn btn-danger-ghost" id="btn-reset">🗑 Réinitialiser</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="modal" class="modal-backdrop hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modal-titre">Ajouter</h2>
+      <button class="btn-fermer" id="btn-fermer-modal">✕</button>
+    </div>
+    <div id="modal-corps"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
