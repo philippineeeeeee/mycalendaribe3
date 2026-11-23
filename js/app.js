@@ -184,35 +184,35 @@ function rendreCalendrier() {
   const finFmt = parseISO(dates[6]).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
   document.getElementById("semaine-label").textContent = `${debutFmt} – ${finFmt}`;
 
-  let html = `<div class="cal-gutter"><div class="cal-col-header"></div>`;
+  let headerHTML = `<div class="cal-gutter"><div class="cal-col-header"></div></div>`;
+  let bodyHTML = `<div class="cal-gutter">`;
   for (let h = HEURES.debut; h < HEURES.fin; h++) {
-    html += `<div class="cal-heure">${String(h).padStart(2, "0")}:00</div>`;
+    bodyHTML += `<div class="cal-heure">${String(h).padStart(2, "0")}:00</div>`;
   }
-  html += `</div>`;
+  bodyHTML += `</div>`;
 
-  dates.forEach((dateISO, i) => {
+  dates.forEach((dateISO) => {
     const d = parseISO(dateISO);
     const estAuj = dateISO === aujISO;
-    html += `<div class="cal-col-header ${estAuj ? "aujourdhui" : ""}">${JOURS_COURTS[d.getDay()]}<span class="num">${d.getDate()}</span></div>`;
+    headerHTML += `<div class="cal-col-header ${estAuj ? "aujourdhui" : ""}">${JOURS_COURTS[d.getDay()]}<span class="num">${d.getDate()}</span></div>`;
   });
 
   dates.forEach(dateISO => {
     const d = parseISO(dateISO);
     const estAuj = dateISO === aujISO;
-    html += `<div class="cal-jour ${estAuj ? "aujourdhui-col" : ""}" data-date="${dateISO}">`;
+    bodyHTML += `<div class="cal-jour ${estAuj ? "aujourdhui-col" : ""}" data-date="${dateISO}">`;
     for (let h = HEURES.debut; h < HEURES.fin; h++) {
       html += `<div class="cal-ligne-heure" style="top:${(h - HEURES.debut) * HAUTEUR_HEURE}px"></div>`;
     }
     for (const dv of devoirsPourDate(dateISO)) {
-      const c = coursParId(dv.coursId);
-      html += `<span class="chip-devoir" data-devoir="${dv.id}" title="${dv.titre} — à rendre ${fmtDate(dv.date)} à ${dv.heure}">⚠️ ${dv.titre}</span>`;
+      bodyHTML += `<span class="chip-devoir" data-devoir="${dv.id}" title="${dv.titre} — à rendre ${fmtDate(dv.date)} à ${dv.heure}">⚠️ ${dv.titre}</span>`;
     }
     for (const ev of eventsPourDate(dateISO)) {
       const c = couleurEvenement(ev);
       const top = (heureEnMin(ev.debut) - HEURES.debut * 60);
       const hauteur = Math.max(heureEnMin(ev.fin) - heureEnMin(ev.debut), 20);
       const salle = ev.salle ? `<span class="ev-salle">${ev.salle}</span>` : "";
-      html += `<div class="evenement type-${ev.type}" data-source="${ev.source}" data-id="${ev.id}"
+      bodyHTML += `<div class="evenement type-${ev.type}" data-source="${ev.source}" data-id="${ev.id}"
         style="top:${top}px;height:${hauteur}px;background:${c.fond};border-left-color:${c.bord}">
         <span class="ev-titre">${ev.titre}</span>${salle}</div>`;
     }
@@ -220,14 +220,14 @@ function rendreCalendrier() {
       if (dv.heure === "23:59") continue;
       const c = couleurEvenement({ type: "devoir" });
       const top = heureEnMin(dv.heure) - HEURES.debut * 60;
-      html += `<div class="evenement type-devoir" data-source="devoir" data-id="${dv.id}"
+      bodyHTML += `<div class="evenement type-devoir" data-source="devoir" data-id="${dv.id}"
         style="top:${top}px;height:26px;background:${c.fond};border-left-color:${c.bord}">
         <span class="ev-titre">⏰ ${dv.heure}</span></div>`;
     }
-    html += `</div>`;
+    bodyHTML += `</div>`;
   });
 
-  document.getElementById("calendrier").innerHTML = html;
+  document.getElementById("calendrier").innerHTML = `<div class="cal-header">${headerHTML}</div><div class="cal-body">${bodyHTML}</div>`;
 
   document.querySelectorAll(".evenement").forEach(el => {
     el.addEventListener("click", () => ouvrirDetailEvenement(el.dataset.source, el.dataset.id));
@@ -326,6 +326,10 @@ function ouvrirModalDevoir() {
       <div class="form-champ"><label>Heure</label><input type="time" id="f-heure" value="23:59"></div>
     </div>
     <div class="form-champ"><label>Description (optionnel)</label><textarea id="f-desc" rows="2"></textarea></div>
+    <div class="form-ligne">
+      <div class="form-champ"><label>Lien de la source (Moodle, Oralangues…)</label><input type="url" id="f-lien" placeholder="https://..."></div>
+      <div class="form-champ"><label>Durée estimée (h)</label><input type="number" id="f-duree" min="0.5" max="20" step="0.5" value="3"></div>
+    </div>
     <div class="form-actions">
       <button class="btn-ghost" id="f-annuler">Annuler</button>
       <button class="btn btn-accent" id="f-valider">Ajouter</button>
@@ -342,7 +346,9 @@ function ouvrirModalDevoir() {
       date: document.getElementById("f-date").value,
       heure: document.getElementById("f-heure").value || "23:59",
       type: "devoir",
-      desc: document.getElementById("f-desc").value.trim()
+      desc: document.getElementById("f-desc").value.trim(),
+      lien: document.getElementById("f-lien").value.trim(),
+      duree: parseFloat(document.getElementById("f-duree").value) || 3
     });
     sauvegarder();
     fermerModal();
@@ -419,10 +425,13 @@ function ouvrirDetailDevoir(id) {
   if (!d) return;
   const c = coursParId(d.coursId);
   const reste = ecartEnJours(d.date, iso(aujourdhui()));
+  const nomCours = d.coursNom || (c ? c.nom : "—");
   ouvrirModal(`⚠️ ${d.titre}`, `
-    <p><strong>Cours :</strong> ${c ? c.emoji + " " + c.nom : "—"}</p>
+    <p><strong>Cours :</strong> ${c ? c.emoji + " " : ""}${nomCours}</p>
     <p><strong>À rendre :</strong> ${fmtDateLongue(d.date)} à ${d.heure}</p>
     <p><strong>Dans :</strong> ${reste <= 0 ? "aujourd'hui !" : reste === 1 ? "demain" : reste + " jours"}</p>
+    <p><strong>Travail prévu :</strong> ${d.duree || 3} h</p>
+    ${d.lien ? `<p><strong>Source :</strong> <a href="${d.lien}" target="_blank" rel="noopener">🔗 ouvrir le lien</a></p>` : ""}
     ${d.desc ? `<p><strong>Description :</strong> ${d.desc}</p>` : ""}
     <div class="form-actions">
       <button class="btn btn-accent" id="f-revision">🧠 Programmer une révision</button>
@@ -839,8 +848,10 @@ function rendreDeadlines() {
   el.innerHTML = aVenir.length === 0 ? `<p class="hint">Aucune deadline à venir 🎉</p>` : aVenir.map(d => {
     const c = coursParId(d.coursId);
     const reste = ecartEnJours(d.date, auj);
+    const nomCours = d.coursNom || (c ? c.nom : "?");
     return `<li>
-      <span class="texte">⚠️ ${d.titre} ${c ? `(${c.emoji} ${c.nom})` : ""}</span>
+      <span class="texte">⚠️ ${d.titre} (${c ? c.emoji + " " : ""}${nomCours})
+        ${d.lien ? `<a href="${d.lien}" target="_blank" rel="noopener" title="Ouvrir la source">🔗</a>` : ""}</span>
       <span class="badge-date">${fmtDate(d.date)} à ${d.heure} — ${reste <= 0 ? "aujourd'hui" : reste === 1 ? "demain" : "dans " + reste + " j"}</span>
       <button class="btn-suppr" data-suppr-deadline="${d.id}">🗑</button>
     </li>`;
@@ -936,6 +947,7 @@ function mapCoursMoodle(texte) {
   if (/python|informatique/.test(t)) return "python";
   if (/math/.test(t)) return "maths";
   if (/physi/.test(t)) return "physique";
+  if (/chim/.test(t)) return "chimie";
   if (/econo|gest|droit|entreprise/.test(t)) return "eco";
   if (/anglais|english/.test(t)) return "anglais";
   if (/sciences de l|ingénieur|industriel/.test(t)) return "sainf";
@@ -971,10 +983,13 @@ async function synchroniserMoodle() {
           id: "moodle-" + a.id,
           titre: a.name,
           coursId: mapCoursMoodle((coursInfo.fullname || "") + " " + (coursInfo.shortname || "")),
+          coursNom: coursInfo.fullname || null,
           date: h.date,
           heure: h.heure,
           type: "devoir",
-          desc: "Récupéré depuis Moodle — " + (coursInfo.fullname || c.id)
+          desc: "Récupéré depuis Moodle — " + (coursInfo.fullname || c.id),
+          lien: a.cmid ? "https://moodle.psl.eu/mod/assign/view.php?id=" + a.cmid : "https://moodle.psl.eu/course/view.php?id=" + c.id,
+          duree: 3
         });
       }
     }
@@ -1089,9 +1104,83 @@ async function recupererICSDepuisURL(url) {
   }
 }
 
+function planifierSeances(dv) {
+  const auj = aujourdhui();
+  const dateLimite = parseISO(dv.date);
+  const total = Math.max(30, Math.round((parseFloat(dv.duree) || 3) * 60));
+  const joursDispo = Math.min(3, Math.max(1, Math.round((dateLimite - auj) / 86400000)));
+  const parJour = Math.min(180, Math.ceil(total / joursDispo / 30) * 30);
+  let reste = total;
+  const seances = [];
+  let d = new Date(auj);
+  let i = 0;
+  while (reste > 0 && d < dateLimite && i < joursDispo) {
+    const duree = Math.min(reste, parJour);
+    const cr = trouverCreneau(iso(d), duree, 17 * 60);
+    seances.push({ date: cr.date, debut: cr.debut, fin: cr.fin, dureeMin: duree });
+    reste -= duree;
+    d = addJours(d, 1);
+    i++;
+  }
+  if (seances.length === 0) {
+    const cr = trouverCreneau(iso(auj), Math.min(total, 60), 18 * 60);
+    seances.push({ date: cr.date, debut: cr.debut, fin: cr.fin, dureeMin: Math.min(total, 60) });
+  }
+  return seances;
+}
+
+function rendrePlanTravail() {
+  const el = document.getElementById("plan-travail");
+  if (!el) return;
+  const liste = [...state.devoirs].sort((a, b) => (a.date > b.date ? 1 : -1));
+  el.innerHTML = liste.length === 0 ? `<p class="hint">Aucun devoir pour l'instant.</p>` : liste.map(dv => {
+    const c = coursParId(dv.coursId);
+    const nomCours = dv.coursNom || (c ? c.nom : "Général");
+    const seances = planifierSeances(dv);
+    const deja = seances.every((s, i) => state.eventsPerso.some(e => e.tag === `travail-${dv.id}-${i}`));
+    return `<div class="plan-devoir">
+      <h4>⚠️ ${dv.titre} — ${c ? c.emoji + " " : ""}${nomCours}</h4>
+      <p class="meta">Deadline : ${fmtDateLongue(dv.date)} à ${dv.heure} · Travail prévu : ${dv.duree || 3} h${dv.lien ? ` · <a href="${dv.lien}" target="_blank" rel="noopener">🔗 source</a>` : ""}</p>
+      <ul>${seances.map(s => `<li>${fmtDate(s.date)} · ${minEnHeure(s.debut)}–${minEnHeure(s.fin)} (${Math.round(s.dureeMin / 60 * 10) / 10}h)</li>`).join("")}</ul>
+      <button class="btn btn-petit" data-plan="${dv.id}" ${deja ? "disabled" : ""}>${deja ? "✅ déjà au calendrier" : "📅 Ajouter ces séances au calendrier"}</button>
+    </div>`;
+  }).join("");
+  el.querySelectorAll("[data-plan]").forEach(b => {
+    b.addEventListener("click", () => {
+      const dv = state.devoirs.find(x => x.id === b.dataset.plan);
+      if (!dv) return;
+      planifierSeances(dv).forEach((s, i) => {
+        const tag = `travail-${dv.id}-${i}`;
+        if (state.eventsPerso.some(e => e.tag === tag)) return;
+        state.eventsPerso.push({
+          id: uid(),
+          tag,
+          titre: `Travail : ${dv.titre}`,
+          coursId: dv.coursId,
+          type: "revision",
+          date: s.date,
+          jour: parseISO(s.date).getDay(),
+          debut: minEnHeure(s.debut),
+          fin: minEnHeure(s.fin),
+          salle: "",
+          hebdo: false
+        });
+      });
+      sauvegarder();
+      rendreTout();
+      toast("Séances de travail ajoutées au calendrier 🎯");
+    });
+  });
+}
+
 function rendreLiensRapides() {
   document.getElementById("liens-rapides").innerHTML = LIENS_RAPIDES
     .map(l => `<a href="${l.url}" target="_blank" rel="noopener">${l.emoji} ${l.label}</a>`).join("");
+  const cartes = document.getElementById("liens-cartes");
+  if (cartes) {
+    cartes.innerHTML = LIENS_RAPIDES
+      .map(l => `<a class="lien-carte" href="${l.url}" target="_blank" rel="noopener"><span class="emoji">${l.emoji}</span><span>${l.label}</span></a>`).join("");
+  }
 }
 
 function rendreTout() {
@@ -1103,6 +1192,7 @@ function rendreTout() {
   rendreNotes();
   rendreTaches();
   rendreDeadlines();
+  rendrePlanTravail();
 }
 
 function initialiser() {
