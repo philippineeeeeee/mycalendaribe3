@@ -474,6 +474,7 @@ function rendreListeCours() {
     <div class="carte-cours" data-cours="${c.id}" style="--couleur:${c.couleur}">
       <span class="emoji">${c.emoji}</span>
       <h3>${c.nom}</h3>
+      ${c.prof ? `<p style="font-size:0.78rem;color:var(--texte-doux)">👤 ${c.prof}</p>` : ""}
       <p>${c.description}</p>
     </div>
   `).join("");
@@ -517,6 +518,7 @@ function rendreDetailCours() {
   el.innerHTML = `
     <button class="btn-ghost retour" id="btn-retour-cours">‹ Tous les cours</button>
     <h2>${c.emoji} ${c.nom}</h2>
+    ${c.prof ? `<p class="desc">👤 ${c.prof}</p>` : ""}
     <p class="desc">${c.description}</p>
     <div class="liens-cours">${liens}</div>
     <div class="rubriques-tabs">${tabs}</div>
@@ -944,13 +946,14 @@ async function appelMoodle(wsfunction, extra) {
 
 function mapCoursMoodle(texte) {
   const t = (texte || "").toLowerCase();
-  if (/python|informatique/.test(t)) return "python";
   if (/math/.test(t)) return "maths";
   if (/physi/.test(t)) return "physique";
-  if (/chim/.test(t)) return "chimie";
-  if (/econo|gest|droit|entreprise/.test(t)) return "eco";
-  if (/anglais|english/.test(t)) return "anglais";
-  if (/sciences de l|ingénieur|industriel/.test(t)) return "sainf";
+  if (/geoscience|géoscience|earth|outer envelopes|climate i\b/.test(t)) return "geosciences";
+  if (/english|anglais|modern languages|langue/.test(t)) return "anglais";
+  if (/computer|python|algorithm|freecad|informatique/.test(t)) return "python";
+  if (/energy|énergie|ie3c|hydrogen|solar|climate change/.test(t)) return "energie";
+  if (/sdg/.test(t)) return "projets";
+  if (/working methods|méthode|methodes|responsible use of ai/.test(t)) return "methodes";
   return null;
 }
 
